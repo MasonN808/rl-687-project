@@ -11,6 +11,7 @@ class PendulumEnv(object):
         self.observation_space = 3
         self.ts = 0
         self.s = None
+        self.reset()
 
     def step(self, a):
         g = 9.8
@@ -21,7 +22,7 @@ class PendulumEnv(object):
         _thetadot = np.clip(_thetadot, -self.MS, self.MS)
         _theta = self.s[1] + _thetadot * dt
         _theta = ((_theta + np.pi) % (2 * np.pi)) - np.pi
-        self.state = np.array([_theta, _thetadot])
+        self.s = np.array([_theta, _thetadot])
         self.ts +=1
         return self.state2obs(self.s), r, self.ts>=200 
 
@@ -35,6 +36,6 @@ class PendulumEnv(object):
         return self.state2obs(self.s)
 
     def state2obs(self,s):
-        return np.array([np.cos(s[0]), np.sin(s[0]), s[1]])
+        return np.array([np.cos(s[0]), np.sin(s[0]),np.cos(s[0]), np.sin(s[0]),np.cos(s[1]), np.sin(s[1]),np.cos(s[1]), np.sin(s[1]),  s[1]])
 
     

@@ -14,11 +14,13 @@ class CartPole(object):
         self.tau = 0.02
         self.sc = 0
         self.F = [-10.0,10.0]
+        self.normal = np.array([2.4, 3.0, np.pi/15, 4.0])
+        self.reset()
 
     def reset(self):
-        self.c_s = np.array([0.0, 0.0, 0.0, 0.0])
+        self.c_s = np.random.uniform(low=-0.05, high= 0.05, size = (4,) )
         self.sc = 0
-        return self.c_s
+        return self.state2obs(self.c_s)
     
     def next_state(self, a):
         F = self.F[a]
@@ -48,7 +50,13 @@ class CartPole(object):
     def step(self,a):
         self.c_s = self.next_state(a)
         self.sc +=1 
-        return self.c_s,1.0,self.isDone()
+        return self.state2obs(self.c_s),1.0,self.isDone()
+    
+    def state2obs(self,s):
+        x = np.clip(s/self.normal, -1,1)
+        x = np.array([np.sin(x*i*np.pi) for i in range(5)])
+        x = x.reshape(-1)
+        return x
 
 
 if __name__ == "__main__":
