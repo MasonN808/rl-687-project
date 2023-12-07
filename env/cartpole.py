@@ -1,5 +1,6 @@
 import numpy as np
 import math
+
 class CartPole(object):
 
     def __init__(self) -> None:
@@ -15,6 +16,8 @@ class CartPole(object):
         self.sc = 0
         self.F = [-10.0,10.0]
         self.normal = np.array([2.4, 3.0, np.pi/15, 4.0])
+        self.nS = 20
+        self.nA = 2
         self.reset()
 
     def reset(self):
