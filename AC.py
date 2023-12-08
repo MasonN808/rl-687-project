@@ -19,9 +19,9 @@ class SoftmaxPolicyNetwork(nn.Module):
         state = relu(self.fc1(state))
         return self.softmax(self.fc2(state))
     
-class BaselineNetwork(nn.Module):
+class ValueNetwork(nn.Module):
     def __init__(self, state_size, hidden_size):
-        super(BaselineNetwork, self).__init__()
+        super(ValueNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, 1)
 
@@ -29,9 +29,9 @@ class BaselineNetwork(nn.Module):
         state = relu(self.fc1(state))
         return self.fc2(state)
 
-def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99):
+def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99, max_time_step:int=500):
     """
-    REINFORCE
+    One step Actor-Critic
 
     :param env: Gym environment
     :param n_iterations: Number of iterations for the optimization
@@ -42,9 +42,9 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
     n_states = env.observation_space.shape[0]
 
     policy_net = SoftmaxPolicyNetwork(state_size=n_states, hidden_size=128, action_size=n_actions)
-    baseline_net = BaselineNetwork(state_size=n_states, hidden_size=128)
+    value_net = ValueNetwork(state_size=n_states, hidden_size=128)
     policy_optimizer = optim.Adam(policy_net.parameters(), lr=alpha_theta)
-    baseline_optimizer = optim.Adam(baseline_net.parameters(), lr=alpha_w)
+    value_optimizer = optim.Adam(value_net.parameters(), lr=alpha_w)
 
     all_total_rewards = []  # Store returns for each episode for logging
     average_policy_losses = []
@@ -56,6 +56,8 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
         log_probs = []
         values = []
         rewards = []
+        policy_losses = []
+        value_losses = []
         done = False
         t = 0
         while not done:
@@ -64,7 +66,7 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
             # Turn state to Tensor
             state_tensor = from_numpy(state).float().unsqueeze(0)
             action_probs = policy_net(state_tensor)
-            value = baseline_net(state_tensor)
+            value = value_net(state_tensor)
 
             # Always assume categorical action distribution
             dist = distributions.Categorical(action_probs)
@@ -72,7 +74,32 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
             log_prob = dist.log_prob(action)
             next_state, reward, done, _, _ = env.step(action.item())
 
-            # Append to lists
+            next_state_tensor = from_numpy(next_state).float().unsqueeze(0)
+            next_value = value_net(next_state_tensor)
+            delta = reward + gamma*next_value*(1 - int(done)) - value
+
+            # Update the NN weights
+            policy_optimizer.zero_grad()
+            value_optimizer.zero_grad()
+
+            # Ignore gamma term since not needed in practice
+            policy_loss = -log_prob * delta.detach() # Detach delta to prevent it from influencing the policy gradient
+            policy_losses.append(policy_loss)
+            policy_loss.backward()
+
+            # Use mean-squared error
+            # (value.squeeze() - G)^2 is equivalnet to gradient of delta
+            value_loss = delta.pow(2).mean()
+            value_losses.append(value_loss)
+            value_loss.backward()
+
+            # Perform backpropagation
+            policy_loss.backward()
+            value_loss.backward()
+            policy_optimizer.step()
+            value_optimizer.step()
+
+            # Append to lists for logging
             log_probs.append(log_prob)
             values.append(value)
             rewards.append(reward)
@@ -80,47 +107,19 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
 
             t += 1
             # Set max time step
-            # if t == 500:
-            #     break
+            if t == max_time_step:
+                break
 
         total_reward = sum(rewards)
         all_total_rewards.append(total_reward)
 
-        returns = []
-        G = 0
-        # Start at end of episode to make calculation simpler
-        for reward in reversed(rewards):
-            G = reward + gamma * G
-            returns.insert(0, G)
-        returns = tensor(returns)
-
-        # reset gradients before next forward pass
-        policy_optimizer.zero_grad()
-        baseline_optimizer.zero_grad()
-
-        policy_losses = []
-        value_losses = []
-        for log_prob, value, G in zip(log_probs, values, returns):
-            delta = G - value.item()
-            # Ignore gamma term since not needed in practice
-            policy_loss = -log_prob * delta
-            policy_losses.append(policy_loss)
-            policy_loss.backward()
-            # Use mean-squared error
-            # (value.squeeze() - G)^2 is equivalnet to gradient of delta
-            value_loss = (value.squeeze() - G).pow(2).mean()
-            value_losses.append(value_loss)
-            value_loss.backward()
         average_policy_loss = sum(policy_losses)/len(policy_losses)
         average_value_loss = sum(value_losses)/len(value_losses)
 
         average_policy_losses.append(average_policy_loss.item())
         average_value_losses.append(average_value_loss.item())
 
-        policy_optimizer.step()
-        baseline_optimizer.step()
-
-    return policy_net, baseline_net, all_total_rewards, average_policy_losses, average_value_losses
+    return policy_net, value_net, all_total_rewards, average_policy_losses, average_value_losses
 
 
 class Parameters():
@@ -130,7 +129,7 @@ class Parameters():
         self.n_episodes = n_episodes
         self.gamma = gamma
 
-def random_tune(env, iterations: int, n_episodes: int, gamma: float):
+def random_tune(env, iterations: int, n_episodes: int, gamma: float, max_time_steps: int):
     J_values_dict = {}
     best_avg_return = 0
     for i in range(0, iterations):
@@ -138,7 +137,7 @@ def random_tune(env, iterations: int, n_episodes: int, gamma: float):
         # Hyperparamter tune via Guassian values
         alpha_theta = np.random.uniform(.001, .002)
         alpha_w = np.random.uniform(.001, .002)
-        _, _, J_values, _, _ = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
+        _, _, J_values, _, _ = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_step=max_time_steps)
 
         average_return = sum(J_values) / len(J_values)
         if average_return > best_avg_return:
@@ -165,7 +164,7 @@ def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iteration
     plt.ylabel(misc)
     plt.title(f'{misc} over {n_iterations} iterations with {n_episodes} episodes')
     plt.grid(True)
-    plt.savefig(f"REINFORCE/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
+    plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
 def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float):
@@ -174,7 +173,7 @@ def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n
     policy_loss_values = []
     value_loss_values = []
     for _ in range(0, n_iterations):
-        _, _, all_total_rewards, average_policy_losses, average_value_losses = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
+        _, _, all_total_rewards, average_policy_losses, average_value_losses = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
         reward_list_values.append(all_total_rewards)
         policy_loss_values.append(average_policy_losses)
         value_loss_values.append(average_value_losses)
@@ -203,11 +202,12 @@ if __name__=="__main__":
     # Example usage
     env_name = "LunarLander-v2"
     env = gym.make(env_name)
-    n_episodes = 2000
+    n_episodes = 1000
     gamma = .99
+    max_time_steps = 1000
 
     DUMP = True
-    filename = f'REINFORCE/data/{env_name}/data-{n_episodes}.pkl'
+    filename = f'AC/data/{env_name}/data-{n_episodes}.pkl'
     if DUMP:
         # DUMPING
         # Load the existing dictionary from the pickle file (or start with an empty dictionary if the file doesn't exist)
@@ -218,7 +218,7 @@ if __name__=="__main__":
             data = {}
 
         # Your new data
-        values_dict = random_tune(env, iterations=5, n_episodes=n_episodes, gamma=gamma)
+        values_dict = random_tune(env, iterations=5, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
 
         # Update the dictionary with the new data
         data.update(values_dict)
