@@ -85,13 +85,11 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
             # Ignore gamma term since not needed in practice
             policy_loss = -log_prob * delta.detach() # Detach delta to prevent it from influencing the policy gradient
             policy_losses.append(policy_loss)
-            policy_loss.backward()
 
             # Use mean-squared error
             # (value.squeeze() - G)^2 is equivalnet to gradient of delta
             value_loss = delta.pow(2).mean()
             value_losses.append(value_loss)
-            value_loss.backward()
 
             # Perform backpropagation
             policy_loss.backward()

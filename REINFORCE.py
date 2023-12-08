@@ -80,8 +80,8 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
 
             t += 1
             # Set max time step
-            # if t == 500:
-            #     break
+            if t == 1000:
+                break
 
         total_reward = sum(rewards)
         all_total_rewards.append(total_reward)
@@ -136,8 +136,8 @@ def random_tune(env, iterations: int, n_episodes: int, gamma: float):
     for i in range(0, iterations):
         print(f'iteration: {i}')
         # Hyperparamter tune via Guassian values
-        alpha_theta = np.random.uniform(.001, .002)
-        alpha_w = np.random.uniform(.001, .002)
+        alpha_theta = np.random.uniform(.01, .02)
+        alpha_w = np.random.uniform(.01, .02)
         _, _, J_values, _, _ = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
 
         average_return = sum(J_values) / len(J_values)
