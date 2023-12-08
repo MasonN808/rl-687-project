@@ -12,14 +12,12 @@ class SoftmaxPolicyNetwork(nn.Module):
     def __init__(self, state_size, hidden_size, action_size):
         super(SoftmaxPolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, action_size)
-        self.softmax = nn.Softmax(dim=0)
+        self.fc2 = nn.Linear(hidden_size, action_size)
+        self.softmax = nn.Softmax(dim=1) # dim=1 fixed issues
 
     def forward(self, state):
         state = relu(self.fc1(state))
-        state = relu(self.fc2(state))
-        return self.softmax(self.fc3(state))
+        return self.softmax(self.fc2(state))
     
 class BaselineNetwork(nn.Module):
     def __init__(self, state_size, hidden_size):
@@ -51,13 +49,15 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
     all_total_rewards = []  # Store returns for each episode for logging
     average_policy_losses = []
     average_value_losses = []
-    for _ in range(n_episodes):
+    for i in range(n_episodes):
+        print(i)
         # Generate trajectory
         state = env.reset()[0]
         log_probs = []
         values = []
         rewards = []
         done = False
+        t = 0
         while not done:
             if isinstance(state, tuple):
                 state = np.array(state)
@@ -77,6 +77,11 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
             values.append(value)
             rewards.append(reward)
             state = next_state
+
+            t += 1
+            # Set max time step
+            if t == 500:
+                break
 
         total_reward = sum(rewards)
         all_total_rewards.append(total_reward)
@@ -109,29 +114,11 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
         average_policy_loss = sum(policy_losses)/len(policy_losses)
         average_value_loss = sum(value_losses)/len(value_losses)
 
-        # policy_losses = []
-        # value_losses = []
-        # for log_prob, value, G in zip(log_probs, values, returns):
-        #     delta = G - value.item()
-        #     # Ignore gamma term since not needed in practice
-        #     policy_loss = -log_prob * delta
-        #     policy_losses.append(policy_loss)
-        #     # Use mean-squared error
-        #     # (value.squeeze() - G)^2 is equivalnet to gradient of delta
-        #     value_loss = (value - G).pow(2)
-        #     value_losses.append(value_loss)
-        # average_policy_loss = sum(policy_losses)/len(policy_losses)
-        # average_value_loss = sum(value_losses)/len(value_losses)
-        
         average_policy_losses.append(average_policy_loss.item())
         average_value_losses.append(average_value_loss.item())
 
-        # policy_loss =
-
         policy_optimizer.step()
         baseline_optimizer.step()
-        # policy_loss.backward()
-        # value_loss.backward()
 
     return policy_net, baseline_net, all_total_rewards, average_policy_losses, average_value_losses
 
@@ -216,12 +203,7 @@ if __name__=="__main__":
     # Example usage
     env_name = "CartPole-v1"
     env = gym.make(env_name)
-    # env_name = "GW687"
-    # env = gw.GW687()
-    # alpha_theta = .001
-    # alpha_w = .001
-    # iterations = 5
-    n_episodes = 2000
+    n_episodes = 800
     gamma = .99
 
     DUMP = True
@@ -257,69 +239,3 @@ if __name__=="__main__":
         print(f"Key: {key.alpha_theta, key.alpha_w, key.n_episodes, key.gamma}, Value: {value}")
         plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma)
 
-
-    # import matplotlib.pyplot as plt
-    # import matplotlib.animation as animation
-    # from PIL import ImageFont, ImageDraw, Image
-    # import numpy as np
-    # import cv2
-
-    # policy_net, baseline_net, _, _, _ = reinforce(env, .001, .001, 1000, .99)
-
-    # fig = plt.figure()
-    # ACTION_SPACE = [0,1]
-    # env = gym.make("CartPole-v0")
-    # state = env.reset()
-    # ims = []
-    # rewards = []
-    # for step in range(500):
-    #     # env.render()
-    #     img = env.render(render_mode='rgb_array')
-    #     state_tensor = from_numpy(state).float().unsqueeze(0)
-    #     action_probs = policy_net(state_tensor)
-    #     dist = distributions.Categorical(action_probs)
-    #     action = dist.sample()
-    #     print(action)
-    #     state,reward,done,_ = env.step(action.item())
-    #     print(reward)
-    #     rewards.append(reward)
-    #     cv2_im_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    #     pil_im = Image.fromarray(cv2_im_rgb)
-
-    #     draw = ImageDraw.Draw(pil_im)
-
-    #     # Choose a font
-    #     font = ImageFont.truetype("Roboto-Regular.ttf", 20)
-
-    #     # Draw the text
-    #     draw.text((0, 0), f"Step: {step} Action : {action} Reward: {reward} Total Rewards: {np.sum(rewards)} done: {done}", font=font,fill="#000000")
-
-    #     # Save the image
-    #     img = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2BGR)
-    #     # img = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2GRAY)
-    #     im = plt.imshow(img, animated=True)
-    #     ims.append([im])
-    # env.close()    
-
-    # Writer = animation.writers['pillow']
-    # writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-    # im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000,
-    #                                     blit=True)
-    # im_ani.save('cp_train.gif', writer=writer)
-
-    # Plot rewards over episodes
-    # plt.plot(all_total_rewards)
-    # plt.title("Expected Return Over Episodes")
-    # plt.xlabel("Episodes")
-    # plt.ylabel("Total Return")
-    # plt.show()
-    # plt.plot(policy_losses)
-    # plt.title("Average Policy Loss Over Episodes")
-    # plt.xlabel("Episodes")
-    # plt.ylabel("Avg Policy Loss")
-    # plt.show()
-    # plt.plot(value_losses)
-    # plt.title("Average Value Loss Over Episodes")
-    # plt.xlabel("Episodes")
-    # plt.ylabel("Avg Value Loss")
-    # plt.show()
