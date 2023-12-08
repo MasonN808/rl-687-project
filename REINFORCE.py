@@ -1,7 +1,10 @@
 import pickle
+import sys
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
+# sys.path.append("env")
+import env.gridworld as gw
 
 
 from torch import nn, optim, relu, from_numpy, distributions, tensor
@@ -143,7 +146,7 @@ def random_tune(env, iterations: int):
 
     return J_values_dict
 
-def plot_line_graph(data_vector: list, std_dev: list, n_iterations: int, n_episodes: int, misc: str, name: str):
+def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iterations: int, n_episodes: int, misc: str, name: str):
     """
     Plots a line graph given a data vector with std deviation.
     """
@@ -159,10 +162,10 @@ def plot_line_graph(data_vector: list, std_dev: list, n_iterations: int, n_episo
     plt.ylabel(misc)
     plt.title(f'{misc} over {n_iterations} iterations with {n_episodes} episodes')
     plt.grid(True)
-    plt.savefig(f"REINFORCE/figs/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
+    plt.savefig(f"REINFORCE/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
-def plot(env, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float):
+def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float):
     """Plots n iterations with std deviation given algorithm parameters"""
     reward_list_values = []
     policy_loss_values = []
@@ -179,7 +182,7 @@ def plot(env, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes:
         values = average_lists(list_values)
         std_values = std_dev_lists(list_values)
         # J_values = max_lists(J_values)
-        plot_line_graph(values, std_values, n_iterations=n_iterations, n_episodes=n_episodes, misc=f"Average total {list_name}", name=list_name)
+        plot_line_graph(env_name, values, std_values, n_iterations=n_iterations, n_episodes=n_episodes, misc=f"Average total {list_name}", name=list_name)
 
 def std_dev_lists(list_of_lists):
     """Returns a list where each element is the standard deviation of the elements at the corresponding indices in the input lists."""
@@ -195,21 +198,17 @@ def max_lists(list_of_lists):
 
 if __name__=="__main__":
     # Example usage
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
+    # env_name = "CartPole-v1"
+    # env = gym.make(env_name)
+    env_name = "GW687"
+    env = gw.GW687()
     alpha_theta = .004
     alpha_w = .004
     iterations = 5
     n_episodes = 500
-    # for _ in iterations:
-    #     policy_net, baseline_net, all_total_rewards, policy_losses, value_losses = reinforce(env, 
-    #                                                                                     alpha_theta=alpha_theta, 
-    #                                                                                     alpha_w=alpha_w, 
-    #                                                                                     n_episodes=n_episodes, 
-    #                                                                                     gamma=.9)
 
     DUMP = True
-    filename = f'REINFORCE/data/data-{n_episodes}.pkl'
+    filename = f'REINFORCE/data/{env_name}/data-{n_episodes}.pkl'
     if DUMP:
         # DUMPING
         # Load the existing dictionary from the pickle file (or start with an empty dictionary if the file doesn't exist)
@@ -239,11 +238,7 @@ if __name__=="__main__":
     top_items = list(sorted_data.items())[0:1]
     for key, value in top_items:
         print(f"Key: {key.alpha_theta, key.alpha_w, key.n_episodes, key.gamma}, Value: {value}")
-        plot(env, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma)
-
-
-    # plot_line_graph(data)
-
+        plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma)
 
     # Plot rewards over episodes
     # plt.plot(all_total_rewards)
