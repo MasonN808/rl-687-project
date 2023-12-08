@@ -13,7 +13,7 @@ class SoftmaxPolicyNetwork(nn.Module):
         super(SoftmaxPolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, action_size)
-        self.softmax = nn.Softmax(dim=1) # dim=1 fixed issues
+        self.softmax = nn.Softmax(dim=1) # dim=1 fixed issues; TODO: verify its not dim=-1
 
     def forward(self, state):
         state = relu(self.fc1(state))
@@ -167,13 +167,13 @@ def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iteration
     plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
-def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float):
+def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float, max_time_steps: int):
     """Plots n iterations with std deviation given algorithm parameters"""
     reward_list_values = []
     policy_loss_values = []
     value_loss_values = []
     for _ in range(0, n_iterations):
-        _, _, all_total_rewards, average_policy_losses, average_value_losses = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
+        _, _, all_total_rewards, average_policy_losses, average_value_losses = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_step=max_time_steps)
         reward_list_values.append(all_total_rewards)
         policy_loss_values.append(average_policy_losses)
         value_loss_values.append(average_value_losses)
@@ -200,11 +200,11 @@ def max_lists(list_of_lists):
 
 if __name__=="__main__":
     # Example usage
-    env_name = "LunarLander-v2"
+    env_name = "CartPole-v1"
     env = gym.make(env_name)
-    n_episodes = 1000
+    n_episodes = 800
     gamma = .99
-    max_time_steps = 1000
+    max_time_steps = 500
 
     DUMP = True
     filename = f'AC/data/{env_name}/data-{n_episodes}.pkl'
@@ -237,5 +237,5 @@ if __name__=="__main__":
     top_items = list(sorted_data.items())[0:1]
     for key, value in top_items:
         print(f"Key: {key.alpha_theta, key.alpha_w, key.n_episodes, key.gamma}, Value: {value}")
-        plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma)
+        plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma, max_time_steps=max_time_steps)
 
