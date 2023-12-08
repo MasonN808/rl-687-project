@@ -12,9 +12,9 @@ class GW687(object):
             [0,0,2,0,3]
         ])
         self.states, self.itos, self.stoi = self.get_states()
-        self.actions = [0,1,2,3]
-        self.na = 4
-        self.ns = 25
+        self.actionS = [0,1,2,3]
+        self.nA = 4
+        self.nS = 25
         self.cs = 0
         self.gamma = gamma
         self.R = self.get_rewards()
@@ -33,7 +33,7 @@ class GW687(object):
                         ])
 
     def reset(self):
-        self.cs = np.random.choice([i for i in range(25) if i not in [12,17,24]])
+        self.cs = np.random.choice([0,5,10,15,20])
         return self.cs
 
     def get_states(self):
@@ -57,11 +57,11 @@ class GW687(object):
         return False
                 
     def get_transitions(self):
-        T = np.zeros((self.ns,self.na,self.ns))
+        T = np.zeros((self.nS,self.nA,self.nS))
         UD = [-1,1,0,0]
         LR = [0,0,-1,1]
-        for s in range(self.ns):
-            for a in range(self.na):
+        for s in range(self.nS):
+            for a in range(self.nA):
                 cs = s
                 left = None
                 right = None
@@ -110,10 +110,10 @@ class GW687(object):
         
 
     def get_rewards(self):
-        R = np.zeros((self.ns,self.na,self.ns))
-        for s in range(self.ns):
-            for a in range(self.na):
-                for sd in range(self.ns):
+        R = np.zeros((self.nS,self.nA,self.nS))
+        for s in range(self.nS):
+            for a in range(self.nA):
+                for sd in range(self.nS):
                     if self.itos[sd] == (4,2):
                         R[s,a,sd] = -10
                     elif self.itos[s] in [(4,4),(2,2),(3,2)]:
@@ -125,7 +125,7 @@ class GW687(object):
         return R
     
     def step(self,a):
-        sd = np.random.choice(np.arange(self.ns), p = self.T[self.cs,a,:])
+        sd = np.random.choice(np.arange(self.nS), p = self.T[self.cs,a,:])
         r = self.R[self.cs,a,sd]
         done = (self.itos[sd]== (4,4))
         self.cs = sd
