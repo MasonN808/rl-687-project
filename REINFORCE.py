@@ -263,8 +263,8 @@ def random_tune(env, iterations: int, n_episodes: int, gamma: float, max_time_st
         # Hyperparamter tune via Guassian values
         # alpha_theta = np.random.uniform(.01, .1)
         # alpha_w = np.random.uniform(.01, .1)
-        alpha_theta = np.random.uniform(.001, .01)
-        alpha_w = np.random.uniform(.001, .01)
+        alpha_theta = np.random.uniform(.00001, .00003)
+        alpha_w = np.random.uniform(.00001, .00003)
         _, _, J_values, _, _ = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
 
         average_return = sum(J_values) / len(J_values)
@@ -331,13 +331,14 @@ if __name__=="__main__":
     # env_name = "LunarLander-v2"
     # env_name = "CartPole-v1"
     # env = gym.make(env_name)
-    env_name = "CartPole"
-    # env_name = "Pendulum"
-    max_time_steps = 500
-    # env = PendulumEnv()
-    env = CartPole()
-    n_episodes = 800
-    gamma = .99
+    # env_name = "CartPole"
+    # env_name = "roboBoxPushing"
+    env_name = "Pendulum"
+    max_time_steps = 200
+    env = PendulumEnv()
+    # env = CartPole()
+    n_episodes = 1000
+    gamma = .9
 
     DUMP = True
     filename = f'REINFORCE/data/{env_name}/data-{n_episodes}.pkl'
