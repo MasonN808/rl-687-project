@@ -1,5 +1,5 @@
 import numpy as np
-import gymnasium as gym
+# import gymnasium as gym
 class PendulumEnv(object):
  
     def __init__(self, AS = 'D', Dis = 9):

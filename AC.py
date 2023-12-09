@@ -3,7 +3,11 @@ import sys
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
-# sys.path.append("env")
+import torch
+from env.cartpole import CartPole
+from env.pendulum import PendulumEnv
+from env.gridworld import GW687
+from env.boxpushing import roboBoxPushing
 import env.gridworld as gw
 
 
@@ -13,7 +17,7 @@ class SoftmaxPolicyNetwork(nn.Module):
         super(SoftmaxPolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, action_size)
-        self.softmax = nn.Softmax(dim=1) # dim=1 fixed issues; TODO: verify its not dim=-1
+        self.softmax = nn.Softmax(dim=-1) # dim=1 fixed issues; TODO: verify its not dim=-1
 
     def forward(self, state):
         state = relu(self.fc1(state))
@@ -29,6 +33,109 @@ class ValueNetwork(nn.Module):
         state = relu(self.fc1(state))
         return self.fc2(state)
 
+# def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99, max_time_step:int=500):
+#     """
+#     One step Actor-Critic
+
+#     :param env: Gym environment
+#     :param n_iterations: Number of iterations for the optimization
+#     :param gamma: Discount factor for future rewards
+#     :return: Optimized policy parameters
+#     """
+#     n_actions = env.action_space.n
+#     n_states = env.observation_space.shape[0]
+
+#     policy_net = SoftmaxPolicyNetwork(state_size=n_states, hidden_size=128, action_size=n_actions)
+#     value_net = ValueNetwork(state_size=n_states, hidden_size=128)
+#     policy_optimizer = optim.Adam(policy_net.parameters(), lr=alpha_theta)
+#     value_optimizer = optim.Adam(value_net.parameters(), lr=alpha_w)
+
+#     all_total_rewards = []  # Store returns for each episode for logging
+#     average_policy_losses = []
+#     average_value_losses = []
+#     for i in range(n_episodes):
+#         print(i)
+#         # Generate trajectory
+#         state = env.reset()[0]
+#         log_probs = []
+#         values = []
+#         rewards = []
+#         policy_losses = []
+#         value_losses = []
+#         done = False
+#         t = 0
+#         while not done:
+#             if isinstance(state, tuple):
+#                 state = np.array(state)
+#             # Turn state to Tensor
+#             state_tensor = from_numpy(state).float().unsqueeze(0)
+#             action_probs = policy_net(state_tensor)
+#             value = value_net(state_tensor)
+
+#             # Always assume categorical action distribution
+#             dist = distributions.Categorical(action_probs)
+#             action = dist.sample()
+#             log_prob = dist.log_prob(action)
+#             next_state, reward, done, _, _ = env.step(action.item())
+
+#             next_state_tensor = from_numpy(next_state).float().unsqueeze(0)
+#             next_value = value_net(next_state_tensor)
+#             delta = reward + gamma*next_value*(1 - int(done)) - value
+
+#             # Update the NN weights
+#             policy_optimizer.zero_grad()
+#             value_optimizer.zero_grad()
+
+#             # Ignore gamma term since not needed in practice
+#             policy_loss = -log_prob * delta.detach() # Detach delta to prevent it from influencing the policy gradient
+#             policy_losses.append(policy_loss)
+
+#             # Use mean-squared error
+#             value_loss = delta.pow(2).mean()
+#             value_losses.append(value_loss)
+
+#             # Perform backpropagation
+#             policy_loss.backward()
+#             value_loss.backward()
+#             policy_optimizer.step()
+#             value_optimizer.step()
+
+#             # Append to lists for logging
+#             log_probs.append(log_prob)
+#             values.append(value)
+#             rewards.append(reward)
+#             state = next_state
+
+#             t += 1
+#             # Set max time step
+#             if t == max_time_step:
+#                 break
+
+#         # sum_policy_loss = sum(policy_losses)
+#         # sum_value_loss = sum(value_losses)
+
+#         # policy_optimizer.zero_grad()
+#         # baseline_optimizer.zero_grad()
+
+#         # # Perform a single backward pass
+#         # policy_loss_accumulated.backward()
+#         # value_loss_accumulated.backward()
+
+#         # # Take an optimization step
+#         # policy_optimizer.step()
+#         # baseline_optimizer.step()
+
+#         total_reward = sum(rewards)
+#         all_total_rewards.append(total_reward)
+
+#         average_policy_loss = sum(policy_losses)/len(policy_losses)
+#         average_value_loss = sum(value_losses)/len(value_losses)
+
+#         average_policy_losses.append(average_policy_loss.item())
+#         average_value_losses.append(average_value_loss.item())
+
+#     return policy_net, value_net, all_total_rewards, average_policy_losses, average_value_losses
+
 def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99, max_time_step:int=500):
     """
     One step Actor-Critic
@@ -38,8 +145,15 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
     :param gamma: Discount factor for future rewards
     :return: Optimized policy parameters
     """
-    n_actions = env.action_space.n
-    n_states = env.observation_space.shape[0]
+    try:
+        # For gym envs
+        n_actions = env.action_space.n
+        n_states = env.observation_space.shape[0]
+    except:
+        # For our custom envs
+        n_actions = env.nA
+        n_states = env.nS
+
 
     policy_net = SoftmaxPolicyNetwork(state_size=n_states, hidden_size=128, action_size=n_actions)
     value_net = ValueNetwork(state_size=n_states, hidden_size=128)
@@ -50,9 +164,9 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
     average_policy_losses = []
     average_value_losses = []
     for i in range(n_episodes):
-        print(i)
         # Generate trajectory
-        state = env.reset()[0]
+        # state = env.reset()[0] # This works for real gym envs
+        state = env.reset()
         log_probs = []
         values = []
         rewards = []
@@ -60,6 +174,10 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
         value_losses = []
         done = False
         t = 0
+
+        policy_optimizer.zero_grad()
+        value_optimizer.zero_grad()
+
         while not done:
             if isinstance(state, tuple):
                 state = np.array(state)
@@ -72,30 +190,21 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
             dist = distributions.Categorical(action_probs)
             action = dist.sample()
             log_prob = dist.log_prob(action)
-            next_state, reward, done, _, _ = env.step(action.item())
+            # next_state, reward, done, _, _ = env.step(action.item()) # Note: Works for actual gym envs
+            next_state, reward, done = env.step(action.item()) 
 
             next_state_tensor = from_numpy(next_state).float().unsqueeze(0)
             next_value = value_net(next_state_tensor)
-            delta = reward + gamma*next_value*(1 - int(done)) - value
-
-            # Update the NN weights
-            policy_optimizer.zero_grad()
-            value_optimizer.zero_grad()
+            target = reward + gamma*next_value.item()*(1 - int(done))
+            delta = target - value.item()
 
             # Ignore gamma term since not needed in practice
-            policy_loss = -log_prob * delta.detach() # Detach delta to prevent it from influencing the policy gradient
+            policy_loss = -log_prob * delta # Detach delta to prevent it from influencing the policy gradient
             policy_losses.append(policy_loss)
 
             # Use mean-squared error
-            # (value.squeeze() - G)^2 is equivalnet to gradient of delta
-            value_loss = delta.pow(2).mean()
+            value_loss = (reward + gamma*next_value.squeeze()*(1 - int(done)) - value.squeeze()).pow(2).mean()
             value_losses.append(value_loss)
-
-            # Perform backpropagation
-            policy_loss.backward()
-            value_loss.backward()
-            policy_optimizer.step()
-            value_optimizer.step()
 
             # Append to lists for logging
             log_probs.append(log_prob)
@@ -107,6 +216,17 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
             # Set max time step
             if t == max_time_step:
                 break
+
+        print(str(i) + "-" + str(t))
+        # Sum up the losses
+        total_policy_loss = torch.stack(policy_losses).sum()
+        total_value_loss = torch.stack(value_losses).sum()
+
+        total_policy_loss.backward()
+        total_value_loss.backward()
+
+        policy_optimizer.step()
+        value_optimizer.step()
 
         total_reward = sum(rewards)
         all_total_rewards.append(total_reward)
@@ -133,8 +253,8 @@ def random_tune(env, iterations: int, n_episodes: int, gamma: float, max_time_st
     for i in range(0, iterations):
         print(f'iteration: {i}')
         # Hyperparamter tune via Guassian values
-        alpha_theta = np.random.uniform(.001, .002)
-        alpha_w = np.random.uniform(.001, .002)
+        alpha_theta = np.random.uniform(.0001, .01)
+        alpha_w = np.random.uniform(.0001, .01)
         _, _, J_values, _, _ = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_step=max_time_steps)
 
         average_return = sum(J_values) / len(J_values)
@@ -162,7 +282,7 @@ def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iteration
     plt.ylabel(misc)
     plt.title(f'{misc} over {n_iterations} iterations with {n_episodes} episodes')
     plt.grid(True)
-    plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
+    # plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
 def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float, max_time_steps: int):
@@ -198,9 +318,9 @@ def max_lists(list_of_lists):
 
 if __name__=="__main__":
     # Example usage
-    env_name = "CartPole-v1"
-    env = gym.make(env_name)
-    n_episodes = 800
+    env_name = "CartPole"
+    env = CartPole()
+    n_episodes = 2000
     gamma = .99
     max_time_steps = 500
 

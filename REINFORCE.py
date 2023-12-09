@@ -3,6 +3,11 @@ import sys
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
+import torch
+from env.cartpole import CartPole
+from env.pendulum import PendulumEnv
+from env.gridworld import GW687
+from env.boxpushing import roboBoxPushing
 # sys.path.append("env")
 import env.gridworld as gw
 
@@ -18,7 +23,7 @@ class SoftmaxPolicyNetwork(nn.Module):
     def forward(self, state):
         state = relu(self.fc1(state))
         return self.softmax(self.fc2(state))
-    
+
 class BaselineNetwork(nn.Module):
     def __init__(self, state_size, hidden_size):
         super(BaselineNetwork, self).__init__()
@@ -29,7 +34,110 @@ class BaselineNetwork(nn.Module):
         state = relu(self.fc1(state))
         return self.fc2(state)
 
-def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99):
+# def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99, max_time_steps:int=500):
+#     """
+#     REINFORCE
+
+#     :param env: Gym environment
+#     :param n_iterations: Number of iterations for the optimization
+#     :param gamma: Discount factor for future rewards
+#     :return: Optimized policy parameters
+#     """
+#     n_actions = env.action_space.n
+#     n_states = env.observation_space.shape[0]
+
+#     policy_net = SoftmaxPolicyNetwork(state_size=n_states, hidden_size=128, action_size=n_actions)
+#     baseline_net = BaselineNetwork(state_size=n_states, hidden_size=128)
+#     policy_optimizer = optim.Adam(policy_net.parameters(), lr=alpha_theta)
+#     baseline_optimizer = optim.Adam(baseline_net.parameters(), lr=alpha_w)
+
+#     all_total_rewards = []  # Store returns for each episode for logging
+#     average_policy_losses = []
+#     average_value_losses = []
+#     for i in range(n_episodes):
+#         # print(i)
+#         # Generate trajectory
+#         state = env.reset()[0]
+#         log_probs = []
+#         values = []
+#         rewards = []
+#         done = False
+#         t = 0
+#         while not done:
+#             if isinstance(state, tuple):
+#                 state = np.array(state)
+#             # Turn state to Tensor
+#             state_tensor = from_numpy(state).float().unsqueeze(0)
+#             action_probs = policy_net(state_tensor)
+#             value = baseline_net(state_tensor)
+
+#             # Always assume categorical action distribution
+#             dist = distributions.Categorical(action_probs)
+#             action = dist.sample()
+#             log_prob = dist.log_prob(action)
+#             next_state, reward, done, _, _ = env.step(action.item())
+
+#             # Append to lists
+#             log_probs.append(log_prob)
+#             values.append(value)
+#             rewards.append(reward)
+#             state = next_state
+
+#             t += 1
+#             # Set max time step
+#             if t == max_time_steps:
+#                 break
+
+#         total_reward = sum(rewards)
+#         all_total_rewards.append(total_reward)
+
+#         returns = []
+#         G = 0
+#         # Start at end of episode to make calculation simpler
+#         for reward in reversed(rewards):
+#             G = reward + gamma * G
+#             returns.insert(0, G)
+#         returns = tensor(returns)
+
+#         # Reset gradients before next forward pass
+#         policy_optimizer.zero_grad()
+#         baseline_optimizer.zero_grad()
+
+#         policy_losses = []
+#         value_losses = []
+#         for log_prob, value, G in zip(log_probs, values, returns):
+#             delta = G - value.item()
+#             # Ignore gamma term since not needed in practice
+#             policy_loss = -log_prob * delta
+#             policy_losses.append(policy_loss)
+#             # policy_loss.backward()
+#             # Use mean-squared error
+#             # (value.squeeze() - G)^2 is equivalnet to gradient of delta
+#             value_loss = (value.squeeze() - G).pow(2).mean()
+#             value_losses.append(value_loss)
+#             # value_loss.backward()
+
+#         average_policy_loss = sum(policy_losses)/len(policy_losses)
+#         average_value_loss = sum(value_losses)/len(value_losses)
+
+#         average_policy_losses.append(average_policy_loss.item())
+#         average_value_losses.append(average_value_loss.item())
+
+#         # Update NN
+#         sum_policy_loss = sum(policy_losses)
+#         sum_value_loss = sum(value_losses)
+
+#         # Perform a single backward pass
+#         sum_policy_loss.backward()
+#         sum_value_loss.backward()
+
+#         # Update weights
+#         policy_optimizer.step()
+#         baseline_optimizer.step()
+
+#     return policy_net, baseline_net, all_total_rewards, average_policy_losses, average_value_losses
+
+def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100, gamma=0.99, max_time_steps:int=500):
     """
     REINFORCE
 
@@ -38,8 +146,14 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
     :param gamma: Discount factor for future rewards
     :return: Optimized policy parameters
     """
-    n_actions = env.action_space.n
-    n_states = env.observation_space.shape[0]
+    try:
+        # For gym envs
+        n_actions = env.action_space.n
+        n_states = env.observation_space.shape[0]
+    except:
+        # For our custom envs
+        n_actions = env.nA
+        n_states = env.nS
 
     policy_net = SoftmaxPolicyNetwork(state_size=n_states, hidden_size=128, action_size=n_actions)
     baseline_net = BaselineNetwork(state_size=n_states, hidden_size=128)
@@ -50,9 +164,9 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
     average_policy_losses = []
     average_value_losses = []
     for i in range(n_episodes):
-        print(i)
         # Generate trajectory
-        state = env.reset()[0]
+        # state = env.reset()[0] # This works for real gym envs
+        state = env.reset()
         log_probs = []
         values = []
         rewards = []
@@ -70,7 +184,8 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
             dist = distributions.Categorical(action_probs)
             action = dist.sample()
             log_prob = dist.log_prob(action)
-            next_state, reward, done, _, _ = env.step(action.item())
+            # next_state, reward, done, _, _ = env.step(action.item()) # Note: Works for actual gym envs
+            next_state, reward, done = env.step(action.item())
 
             # Append to lists
             log_probs.append(log_prob)
@@ -80,10 +195,11 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
 
             t += 1
             # Set max time step
-            if t == 1000:
+            if t == max_time_steps:
                 break
 
         total_reward = sum(rewards)
+        print(str(i) + "-" + str(total_reward))
         all_total_rewards.append(total_reward)
 
         returns = []
@@ -94,31 +210,40 @@ def reinforce(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=100,
             returns.insert(0, G)
         returns = tensor(returns)
 
-        # reset gradients before next forward pass
-        policy_optimizer.zero_grad()
-        baseline_optimizer.zero_grad()
-
         policy_losses = []
         value_losses = []
+        policy_optimizer.zero_grad()
+        baseline_optimizer.zero_grad()
         for log_prob, value, G in zip(log_probs, values, returns):
             delta = G - value.item()
             # Ignore gamma term since not needed in practice
             policy_loss = -log_prob * delta
-            policy_losses.append(policy_loss)
-            policy_loss.backward()
+            # policy_loss.backward()
+
             # Use mean-squared error
             # (value.squeeze() - G)^2 is equivalnet to gradient of delta
             value_loss = (value.squeeze() - G).pow(2).mean()
+            # value_loss.backward()
+
+            policy_losses.append(policy_loss)
             value_losses.append(value_loss)
-            value_loss.backward()
+
+        # Sum up the losses
+        total_policy_loss = torch.stack(policy_losses).sum()
+        total_value_loss = torch.stack(value_losses).sum()
+
+        total_policy_loss.backward()
+        total_value_loss.backward()
+
+        policy_optimizer.step()
+        baseline_optimizer.step()
+
         average_policy_loss = sum(policy_losses)/len(policy_losses)
         average_value_loss = sum(value_losses)/len(value_losses)
 
         average_policy_losses.append(average_policy_loss.item())
         average_value_losses.append(average_value_loss.item())
 
-        policy_optimizer.step()
-        baseline_optimizer.step()
 
     return policy_net, baseline_net, all_total_rewards, average_policy_losses, average_value_losses
 
@@ -130,15 +255,17 @@ class Parameters():
         self.n_episodes = n_episodes
         self.gamma = gamma
 
-def random_tune(env, iterations: int, n_episodes: int, gamma: float):
+def random_tune(env, iterations: int, n_episodes: int, gamma: float, max_time_steps: int):
     J_values_dict = {}
     best_avg_return = 0
     for i in range(0, iterations):
         print(f'iteration: {i}')
         # Hyperparamter tune via Guassian values
-        alpha_theta = np.random.uniform(.01, .02)
-        alpha_w = np.random.uniform(.01, .02)
-        _, _, J_values, _, _ = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
+        # alpha_theta = np.random.uniform(.01, .1)
+        # alpha_w = np.random.uniform(.01, .1)
+        alpha_theta = np.random.uniform(.001, .01)
+        alpha_w = np.random.uniform(.001, .01)
+        _, _, J_values, _, _ = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
 
         average_return = sum(J_values) / len(J_values)
         if average_return > best_avg_return:
@@ -168,13 +295,13 @@ def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iteration
     plt.savefig(f"REINFORCE/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
-def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float):
+def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float, max_time_steps: int):
     """Plots n iterations with std deviation given algorithm parameters"""
     reward_list_values = []
     policy_loss_values = []
     value_loss_values = []
     for _ in range(0, n_iterations):
-        _, _, all_total_rewards, average_policy_losses, average_value_losses = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma)
+        _, _, all_total_rewards, average_policy_losses, average_value_losses = reinforce(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
         reward_list_values.append(all_total_rewards)
         policy_loss_values.append(average_policy_losses)
         value_loss_values.append(average_value_losses)
@@ -201,9 +328,15 @@ def max_lists(list_of_lists):
 
 if __name__=="__main__":
     # Example usage
-    env_name = "LunarLander-v2"
-    env = gym.make(env_name)
-    n_episodes = 2000
+    # env_name = "LunarLander-v2"
+    # env_name = "CartPole-v1"
+    # env = gym.make(env_name)
+    env_name = "CartPole"
+    # env_name = "Pendulum"
+    max_time_steps = 500
+    # env = PendulumEnv()
+    env = CartPole()
+    n_episodes = 800
     gamma = .99
 
     DUMP = True
@@ -218,7 +351,7 @@ if __name__=="__main__":
             data = {}
 
         # Your new data
-        values_dict = random_tune(env, iterations=5, n_episodes=n_episodes, gamma=gamma)
+        values_dict = random_tune(env, iterations=2, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
 
         # Update the dictionary with the new data
         data.update(values_dict)
@@ -237,5 +370,5 @@ if __name__=="__main__":
     top_items = list(sorted_data.items())[0:1]
     for key, value in top_items:
         print(f"Key: {key.alpha_theta, key.alpha_w, key.n_episodes, key.gamma}, Value: {value}")
-        plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma)
+        plot(env, env_name, n_iterations=5, alpha_theta=key.alpha_theta, alpha_w=key.alpha_w, n_episodes=key.n_episodes, gamma=key.gamma, max_time_steps=max_time_steps)
 
