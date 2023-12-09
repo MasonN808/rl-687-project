@@ -5,6 +5,8 @@ from env.boxpushing import roboBoxPushing
 import numpy as np
 import copy 
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+
 
 class GW687Policy(object):
 
@@ -93,7 +95,9 @@ def Simulated_Anneling(env, PO, N = 100, eval =5, T = 25, max_score = 500):
     current_performacne = best
     best_policy = None
     current_policy = PO(env.nS,env.nA)
-    for i in tqdm(range(N)):
+    ret = []
+    
+    for i in range(N):
         env.reset()
         new_policy = copy.deepcopy(current_policy)
         new_policy.mutate()
@@ -107,25 +111,55 @@ def Simulated_Anneling(env, PO, N = 100, eval =5, T = 25, max_score = 500):
         if best < current_performacne:
             best = current_performacne
             best_policy = copy.deepcopy(current_policy)
-            print(i,best)
+        ret.append(best)
         if best>= max_score:
             break
-    print("Best: ", best)
-    return best_policy
+    while len(ret)<N:
+        ret.append(best)
+    return best_policy,ret
     
+
+
+def experiment(env, policy,min_score, max_score, name, RUN = 5):
+    Ts = [1,5,10,20,40]
+    Eval = [1,5,10,20,40]
+    N = 10000
+    print(name)
+    for T in Ts:
+        for E in Eval:
+            print("(T, EVAL): ", (T,E))
+            LC = []
+            best = 0
+            for run in tqdm(range(RUN)):
+                _,lc = Simulated_Anneling(env, policy, N = N, eval=E, T=T, max_score=max_score)
+                LC.append(lc)
+                best +=lc[-1]
+            best/=RUN
+            print("Best: ", best)
+            LC = np.array(LC)
+            LC= np.mean(LC, axis=0)
+            std= np.std(LC, axis=0)
+            #print(LC)
+            plt.plot(np.arange(N)*E,LC)
+            plt.fill_between(np.arange(N)*E, np.clip(LC - std,min_score,max_score), np.clip(LC + std,min_score,max_score), alpha=0.5)
+            plt.xlabel("Episodes")
+            plt.ylabel("Avg. Return")
+            plt.title("Env: {} | T: {} | n_episodes: {}".format(name,T,E))
+            plt.savefig("saadfig/{}_{}_{}.png".format(name,T,E))
+            plt.close()
+                
+
+
 
 
 
 if __name__ == "__main__":
     #env = CartPole()
-    #Simulated_Anneling(env,cartpolePolicy, 1000, 500)
-    #env = gymP()
-    #Simulated_Anneling(env, pendulamPolicy, N = 1000, T = 20, max_score=200)
-    #env = PendulumEnv("C")
-    #Simulated_Anneling(env, pendulamPolicy, N = 1000, T = 15, max_score=200)
-    #env = PendulumEnv("D",Dis = 161)
-    #Simulated_Anneling(env, pendulamPolicyD, N = 10000, T = 15, max_score=200)
+    #experiment(env,cartpolePolicy, 0,500, "Cartpole", 20)
+    env = PendulumEnv("D",Dis = 161)
+    experiment(env,pendulamPolicyD, -2000,0, "Pendulum", 5)
     #env = GW687()
-    #Simulated_Anneling(env, GW687Policy, N = 10000, T = 5, max_score=7)
-    env = roboBoxPushing()
-    Simulated_Anneling(env, RBPPolicy, N = 100000,eval = 625, T = 5, max_score=100)
+    #experiment(env, GW687Policy, -10, 10, "Grid-World 687", 20)
+    #env = roboBoxPushing()
+    #experiment(env, RBPPolicy, -500, 70, "Robot Box-Pushing", 20)
+    

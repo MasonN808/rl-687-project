@@ -11,7 +11,7 @@ class roboBoxPushing:
         self.nS = 1250
         self.nA = 5
         self.states, self.itos, self.stoi = self.get_states()
-        self.gamma = 1.0
+        self.gamma = 0.9
         
 
     def get_states(self):
