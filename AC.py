@@ -17,7 +17,7 @@ class SoftmaxPolicyNetwork(nn.Module):
         super(SoftmaxPolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, action_size)
-        self.softmax = nn.Softmax(dim=-1) # dim=1 fixed issues; TODO: verify its not dim=-1
+        self.softmax = nn.Softmax(dim=1) # dim=1 fixed issues; TODO: verify its not dim=-1
 
     def forward(self, state):
         state = relu(self.fc1(state))
@@ -200,10 +200,11 @@ def AC_one_step(env, alpha_theta:float = .01, alpha_w:float = .01, n_episodes=10
 
             # Ignore gamma term since not needed in practice
             policy_loss = -log_prob * delta # Detach delta to prevent it from influencing the policy gradient
+            # policy_loss = -log_prob * delta # Detach to prevent it from influencing the policy gradient
             policy_losses.append(policy_loss)
 
             # Use mean-squared error
-            value_loss = (reward + gamma*next_value.squeeze()*(1 - int(done)) - value.squeeze()).pow(2).mean()
+            value_loss = (reward + gamma*next_value.detach()*(1 - int(done)) - value.squeeze()).pow(2).mean()
             value_losses.append(value_loss)
 
             # Append to lists for logging
@@ -253,8 +254,10 @@ def random_tune(env, iterations: int, n_episodes: int, gamma: float, max_time_st
     for i in range(0, iterations):
         print(f'iteration: {i}')
         # Hyperparamter tune via Guassian values
-        alpha_theta = np.random.uniform(.0001, .01)
-        alpha_w = np.random.uniform(.0001, .01)
+        # alpha_theta = np.random.uniform(.00001, .0001)
+        # alpha_w = np.random.uniform(.00001, .0001)
+        alpha_theta = 0.0013250009284676693
+        alpha_w = 0.007171304598835055
         _, _, J_values, _, _ = AC_one_step(env, alpha_theta=alpha_theta, alpha_w=alpha_w, n_episodes=n_episodes, gamma=gamma, max_time_step=max_time_steps)
 
         average_return = sum(J_values) / len(J_values)
@@ -282,7 +285,7 @@ def plot_line_graph(env_name: str, data_vector: list, std_dev: list, n_iteration
     plt.ylabel(misc)
     plt.title(f'{misc} over {n_iterations} iterations with {n_episodes} episodes')
     plt.grid(True)
-    # plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
+    plt.savefig(f"AC/figs/{env_name}/plot-{name}.png", dpi=300)  # Saves as a PNG file with high resolution
     plt.show()
 
 def plot(env, env_name, n_iterations: int, alpha_theta: float, alpha_w: float, n_episodes: int, gamma: float, max_time_steps: int):
@@ -320,7 +323,9 @@ if __name__=="__main__":
     # Example usage
     env_name = "CartPole"
     env = CartPole()
-    n_episodes = 2000
+    # env_name = "Pendulum"
+    # env = PendulumEnv()
+    n_episodes = 4000
     gamma = .99
     max_time_steps = 500
 
@@ -336,7 +341,7 @@ if __name__=="__main__":
             data = {}
 
         # Your new data
-        values_dict = random_tune(env, iterations=5, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
+        values_dict = random_tune(env, iterations=1, n_episodes=n_episodes, gamma=gamma, max_time_steps=max_time_steps)
 
         # Update the dictionary with the new data
         data.update(values_dict)
